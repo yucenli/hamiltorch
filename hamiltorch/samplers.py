@@ -847,7 +847,12 @@ def hamiltonian(params, momentum, log_prob_func, jitter=0.01, normalizing_const=
 
 
 
-def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10, step_size=0.1, burn=0, jitter=None, inv_mass=None, normalizing_const=1., softabs_const=None, explicit_binding_const=100, fixed_point_threshold=1e-5, fixed_point_max_iterations=1000, jitter_max_tries=10, sampler=Sampler.HMC, integrator=Integrator.IMPLICIT, metric=Metric.HESSIAN, debug=False, desired_accept_rate=0.8, store_on_GPU = True, pass_grad = None):
+def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10, 
+           step_size=0.1, burn=0, jitter=None, inv_mass=None, normalizing_const=1., 
+           softabs_const=None, explicit_binding_const=100, fixed_point_threshold=1e-5, 
+           fixed_point_max_iterations=1000, jitter_max_tries=10, sampler=Sampler.HMC, 
+           integrator=Integrator.IMPLICIT, metric=Metric.HESSIAN, debug=False, 
+           desired_accept_rate=0.8, store_on_GPU = True, pass_grad = None, progress_bar=False):
     """ This is the main sampling function of hamiltorch. Most samplers are built on top of this class. This function receives a function handle log_prob_func,
      which the sampler will use to evaluate the log probability of each sample. A log_prob_func must take a 1-d vector of length equal to the number of parameters that are being
      sampled.
@@ -958,9 +963,11 @@ def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10, 
 
     num_rejected = 0
     # if sampler == Sampler.HMC:
-    util.progress_bar_init('Sampling ({}; {})'.format(sampler, integrator), num_samples, 'Samples')
+    if progress_bar:
+        util.progress_bar_init('Sampling ({}; {})'.format(sampler, integrator), num_samples, 'Samples')
     for n in range(num_samples):
-        util.progress_bar_update(n)
+        if progress_bar:
+            util.progress_bar_update(n)
         try:
             momentum = gibbs(params, sampler=sampler, log_prob_func=log_prob_func, jitter=jitter, normalizing_const=normalizing_const, softabs_const=softabs_const, metric=metric, mass=mass)
 
@@ -1077,7 +1084,8 @@ def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10, 
 
 
     # import pdb; pdb.set_trace()
-    util.progress_bar_end('Acceptance Rate {:.2f}'.format(1 - num_rejected/num_samples)) #need to adapt for burn
+    if progress_bar:
+        util.progress_bar_end('Acceptance Rate {:.2f}'.format(1 - num_rejected/num_samples)) #need to adapt for burn
     if NUTS and debug == 2:
         return list(map(lambda t: t.detach(), ret_params)), step_size
     elif debug == 2:
@@ -1176,7 +1184,7 @@ def define_model_log_prob(model, model_loss, x, y, params_flattened_list, params
 
         elif model_loss == 'regression':
             # crit = nn.MSELoss(reduction='sum')
-            ll = - 0.5 * tau_out * ((output - y_device) ** 2).sum(0)#sum(0)
+            ll = - 0.5 * tau_out * ((output - y_device) ** 2).sum()#sum(0)
 
         elif callable(model_loss):
             # Assume defined custom log-likelihood.
@@ -1251,7 +1259,14 @@ def define_split_model_log_prob(model, model_loss, train_loader, num_splits, par
     return log_prob_list
 
 
-def sample_model(model, x, y, params_init, model_loss='multi_class_linear_output' ,num_samples=10, num_steps_per_sample=10, step_size=0.1, burn=0, inv_mass=None, jitter=None, normalizing_const=1., softabs_const=None, explicit_binding_const=100, fixed_point_threshold=1e-5, fixed_point_max_iterations=1000, jitter_max_tries=10, sampler=Sampler.HMC, integrator=Integrator.IMPLICIT, metric=Metric.HESSIAN, debug=False, tau_out=1.,tau_list=None, store_on_GPU = True, desired_accept_rate=0.8):
+def sample_model(model, x, y, params_init, model_loss='multi_class_linear_output', 
+                 num_samples=10, num_steps_per_sample=10, step_size=0.1, burn=0, 
+                 inv_mass=None, jitter=None, normalizing_const=1., softabs_const=None, 
+                 explicit_binding_const=100, fixed_point_threshold=1e-5, 
+                 fixed_point_max_iterations=1000, jitter_max_tries=10, sampler=Sampler.HMC, 
+                 integrator=Integrator.IMPLICIT, metric=Metric.HESSIAN, debug=False, 
+                 tau_out=1.,tau_list=None, store_on_GPU = True, desired_accept_rate=0.8,
+                 progress_bar=False):
     """Sample weights from a NN model to perform inference. This function builds a log_prob_func from the torch.nn.Module and passes it to `hamiltorch.sample`.
 
     Parameters
@@ -1350,7 +1365,16 @@ def sample_model(model, x, y, params_init, model_loss='multi_class_linear_output
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
-    return sample(log_prob_func, params_init, num_samples=num_samples, num_steps_per_sample=num_steps_per_sample, step_size=step_size, burn=burn, jitter=jitter, inv_mass=inv_mass, normalizing_const=normalizing_const, softabs_const=softabs_const, explicit_binding_const=explicit_binding_const, fixed_point_threshold=fixed_point_threshold, fixed_point_max_iterations=fixed_point_max_iterations, jitter_max_tries=jitter_max_tries, sampler=sampler, integrator=integrator, metric=metric, debug=debug, desired_accept_rate=desired_accept_rate, store_on_GPU = store_on_GPU)
+    return sample(log_prob_func, params_init, num_samples=num_samples, 
+                  num_steps_per_sample=num_steps_per_sample, step_size=step_size, 
+                  burn=burn, jitter=jitter, inv_mass=inv_mass, 
+                  normalizing_const=normalizing_const, softabs_const=softabs_const, 
+                  explicit_binding_const=explicit_binding_const, 
+                  fixed_point_threshold=fixed_point_threshold, 
+                  fixed_point_max_iterations=fixed_point_max_iterations, 
+                  jitter_max_tries=jitter_max_tries, sampler=sampler, integrator=integrator, 
+                  metric=metric, debug=debug, desired_accept_rate=desired_accept_rate, 
+                  store_on_GPU = store_on_GPU, progress_bar=progress_bar)
 
 def sample_split_model(model, train_loader, params_init, num_splits, model_loss='multi_class_linear_output', num_samples=10, num_steps_per_sample=10, step_size=0.1, burn=0, inv_mass=None, jitter=None, normalizing_const=1., softabs_const=None, explicit_binding_const=100, fixed_point_threshold=1e-5, fixed_point_max_iterations=1000, jitter_max_tries=10, sampler=Sampler.HMC, integrator=Integrator.SPLITTING, metric=Metric.HESSIAN, debug=False, tau_out=1.,tau_list=None, store_on_GPU = True, desired_accept_rate=0.8):
     """Sample weights from a NN model to perform inference.
