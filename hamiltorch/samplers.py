@@ -1035,7 +1035,8 @@ def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10,
                     step_size, eps_bar, H_t = adaptation(rho, n, step_size_init, H_t, eps_bar, desired_accept_rate=desired_accept_rate)
                 if n  == burn:
                     step_size = eps_bar
-                    print('Final Adapted Step Size: ',step_size)
+                    if progress_bar:
+                        print('Final Adapted Step Size: ', step_size)
 
             # if not store_on_GPU: # i.e. delete stuff left on GPU
             #     # This adds approximately 50% to runtime when using colab 'Tesla P100-PCIE-16GB'
@@ -1067,7 +1068,8 @@ def sample(log_prob_func, params_init, num_samples=10, num_steps_per_sample=10,
                 step_size, eps_bar, H_t = adaptation(rho, n, step_size_init, H_t, eps_bar, desired_accept_rate=desired_accept_rate)
             if NUTS and n  == burn:
                 step_size = eps_bar
-                print('Final Adapted Step Size: ',step_size)
+                if progress_bar:
+                    print('Final Adapted Step Size: ', step_size)
 
         if not store_on_GPU: # i.e. delete stuff left on GPU
             # This adds approximately 50% to runtime when using colab 'Tesla P100-PCIE-16GB'
@@ -1156,7 +1158,10 @@ def define_model_log_prob(model, model_loss, x, y, params_flattened_list, params
         for weights, index, shape, dist in zip(model.parameters(), params_flattened_list, params_shape_list, dist_list):
             # weights.data = params[i_prev:index+i_prev].reshape(shape)
             w = params[i_prev:index+i_prev]
-            l_prior = dist.log_prob(w).sum() + l_prior
+            if not torch.any(torch.isnan(w)):
+                l_prior = dist.log_prob(w).sum() + l_prior
+            else:
+                l_prior = -1e5
             i_prev += index
 
         # Sample prior if no data
